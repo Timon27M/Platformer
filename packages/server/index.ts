@@ -1,25 +1,21 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-import axios from 'axios';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import express from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
-import serialize from 'serialize-javascript';
-import { createServer as createViteServer, ViteDevServer } from 'vite';
 import { apiController } from './controllers/apiController';
 import { configureDatabase } from './db';
+import { yandexApiProxyMiddleware } from './middlewares/auth';
 import { authenticateMiddleware } from './middlewares/authenticateMiddleware';
-import { yandexApiProxyMiddleware } from './middlewares/yandexApiProxyMiddleware';
-import { GetServiceIdModel } from './models/GetServiceIdModel';
 
 dotenv.config();
 
+const app = express();
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+const port = Number(process.env.SERVER_PORT) || 3001;
+
 const isDev = () => process.env.NODE_ENV === 'development';
 
-const { CLIENT_URL, SERVER_URL, API_URL, SERVER_PORT } = process.env;
-
 configureDatabase();
+
 
 async function startServer() {
     const app = express();
@@ -126,9 +122,16 @@ async function startServer() {
         }
     });
 
-    app.listen(port, () => {
-        console.log(`  ➜ 🎸 Server is listening on port: ${port}`);
-    });
+app.use(yandexApiProxyMiddleware);
+
+
+app.use(express.json());
+if (isDev()) {
+    app.use('/api', apiController);
+} else {
+    app.use('/api', authenticateMiddleware, apiController);
 }
 
-startServer();
+app.listen(port, () => {
+    console.log(`  ➜ 🎸 Server is listening on port: ${port}`);
+});
